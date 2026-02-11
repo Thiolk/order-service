@@ -2,6 +2,9 @@
 
 REST API for order management.
 
+## Version
+- Current release: 1.0.0
+
 ## Prerequisites
 - Docker
 
