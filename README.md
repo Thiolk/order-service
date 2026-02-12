@@ -3,7 +3,7 @@
 REST API for order management.
 
 ## Version
-- Current release: 1.0.0
+- Current release: 1.1.0
 
 ## Prerequisites
 - Docker + Docker Compose
