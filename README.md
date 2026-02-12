@@ -3,41 +3,72 @@
 REST API for order management.
 
 ## Version
-- Current release: 1.0.0
+- Current release: 1.1.0
 
 ## Prerequisites
-- Docker
+- Docker + Docker Compose
 
+## Docker Files Location
+Docker-related files are located in:
+- `deploy/docker/`
 
-## Build (Docker)
+## Quick Start (Docker Compose)
 
+### 1) Create your local environment file
 From the repo root:
-
 ```bash
-docker build -t order-service:local -f deploy/docker/Dockerfile .
+cp deploy/docker/.env.example deploy/docker/.env
 ```
 
-## Run (Docker)
-
-### Port mapping
-The Order Service listens on port 3002 inside the container (per startup logs). To access it on your laptop at localhost:5001, map:
-host 5001 → container 3002
-
-### Run Command
+### 2) Build and run
+From the repo root:
 ```bash
-docker run --rm -p 5001:3002 order-service:local
+docker compose -f deploy/docker/docker-compose.yml --env-file deploy/docker/.env up -d --build
+docker ps
 ```
 
-### Verify
+### 3) Verify
 ```bash
 curl -i http://localhost:5001/health
 ```
 
-## Configuration (Env Variables)
-you may configure:
+### 4) Stop
+```bash
+docker compose -f deploy/docker/docker-compose.yml --env-file deploy/docker/.env down
+```
+
+## Configuration (Environment Variables)
+You may configure:
 - PORT (default: 3002)
+If/when database integration is enabled, you may also configure:
 - DB_HOST
 - DB_PORT (default: 5432)
 - DB_NAME
 - DB_USER
 - DB_PASSWORD
+
+## Security Scanning (Docker Scout)
+
+We scan the built order service container image for known CVEs using Docker Scout.
+
+From the repo root:
+
+### Scan
+```bash
+chmod +x scripts/security-docker-scout-scan.sh
+./scripts/security-docker-scout-scan.sh
+```
+
+### Policy / Rationale
+
+The Order Service image is built on the official `node` base image (Alpine variant).
+
+Vulnerabilities may be reported in:
+- the upstream base image packages (OS-level dependencies), and/or
+- npm dependencies included in the application image (e.g., `tar`, `glob`, `cross-spawn`).
+
+We mitigate this by:
+- using an appropriate official base image tag and updating it when patches are released
+- keeping the runtime image minimal (production dependencies only via `npm ci --omit=dev`)
+- addressing dependency-level vulnerabilities by updating npm packages when fixes are available and rebuilding the image to verify improvements
+- rescanning regularly to track changes over time
