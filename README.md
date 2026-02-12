@@ -6,36 +6,41 @@ REST API for order management.
 - Current release: 1.0.0
 
 ## Prerequisites
-- Docker
+- Docker + Docker Compose
 
+## Docker Files Location
+Docker-related files are located in:
+- `deploy/docker/`
 
-## Build (Docker)
+## Quick Start (Docker Compose)
 
+### 1) Create your local environment file
 From the repo root:
-
 ```bash
-docker build -t order-service:local -f Dockerfile .
+cp deploy/docker/.env.example deploy/docker/.env
 ```
 
-## Run (Docker)
-
-### Port mapping
-The Order Service listens on port 3002 inside the container (per startup logs). To access it on your laptop at localhost:5001, map:
-host 5001 → container 3002
-
-### Run Command
+### 2) Build and run
+From the repo root:
 ```bash
-docker run -e PORT=3002 -p 5001:3002 order-service:local
+docker compose -f deploy/docker/docker-compose.yml --env-file deploy/docker/.env up -d --build
+docker ps
 ```
 
-### Verify
+### 3) Verify
 ```bash
 curl -i http://localhost:5001/health
 ```
 
-## Configuration (Env Variables)
-you may configure:
+### 4) Stop
+```bash
+docker compose -f deploy/docker/docker-compose.yml --env-file deploy/docker/.env down
+```
+
+## Configuration (Environment Variables)
+You may configure:
 - PORT (default: 3002)
+If/when database integration is enabled, you may also configure:
 - DB_HOST
 - DB_PORT (default: 5432)
 - DB_NAME

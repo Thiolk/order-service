@@ -1,0 +1,12 @@
+services:
+  order-service:
+    container_name: order-service
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile
+    environment:
+      NODE_ENV: production
+      PORT: ${ORDER_PORT_CONTAINER}
+    ports:
+      - "${ORDER_PORT_HOST}:${ORDER_PORT_CONTAINER}"
+    restart: unless-stopped
