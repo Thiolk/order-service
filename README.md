@@ -14,7 +14,7 @@ REST API for order management.
 From the repo root:
 
 ```bash
-docker build -t order-service:local -f deploy/docker/Dockerfile .
+docker build -t order-service:local -f Dockerfile .
 ```
 
 ## Run (Docker)
@@ -25,7 +25,7 @@ host 5001 → container 3002
 
 ### Run Command
 ```bash
-docker run --rm -p 5001:3002 order-service:local
+docker run -e PORT=3002 -p 5001:3002 order-service:local
 ```
 
 ### Verify
