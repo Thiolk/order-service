@@ -2,17 +2,47 @@ pipeline {
   agent any
 
   environment {
-    DOCKERHUB_USER = "thiolengkiat413"
-    IMAGE_NAME     = "order-service"
+    DOCKERHUB_USER   = "thiolengkiat413"
+    IMAGE_NAME       = "order-service"
+    DOCKERFILE_PATH  = "deploy/docker/Dockerfile"
 
-    // Standard repo paths
-    DOCKERFILE_PATH = "deploy/docker/Dockerfile"
-    ENV_FILE        = "deploy/docker/.env"  // Jenkins should provision this (or use .env.example for CI)
+    IMAGE_TAG   = ""
+    RELEASE_TAG = ""
+
+    TARGET_ENV = "none"
   }
 
   stages {
     stage('Checkout') {
       steps { checkout scm }
+    }
+
+    stage('Determine Pipeline Mode') {
+      steps {
+        script {
+          def isPR   = env.CHANGE_ID?.trim()
+          def branch = env.BRANCH_NAME ?: ""
+          def tagName = env.TAG_NAME?.trim()
+          env.RELEASE_TAG = tagName ?: ""
+
+          if (isPR) {
+            env.TARGET_ENV = "build"
+          } else if (tagName) {
+            env.TARGET_ENV = "prod"        // manual trigger is pushing a git tag
+          } else if (branch == "develop") {
+            env.TARGET_ENV = "dev"
+          } else if (branch.startsWith("release/")) {
+            env.TARGET_ENV = "staging"
+          } else {
+            env.TARGET_ENV = "build"
+          }
+
+          echo "BRANCH_NAME: ${branch}"
+          echo "TAG_NAME: ${tagName ?: 'none'}"
+          echo "CHANGE_ID: ${env.CHANGE_ID ?: 'none'}"
+          echo "TARGET_ENV: ${env.TARGET_ENV}"
+        }
+      }
     }
 
     stage('Build (Lint/Format)') {
@@ -35,12 +65,10 @@ pipeline {
       }
     }
 
-    stage('Test (Integration - scaffolding)') {
+    stage('Test (Integration)') {
       steps {
         sh '''
           set -eux
-          # For now: run integration tests without needing full DB logic.
-          # When you add real tests, we will bring up docker-compose.test.yml first.
           npm run test:integration
         '''
       }
@@ -50,118 +78,63 @@ pipeline {
       steps {
         sh '''
           set -eux
-          # If you want coverage, switch test to: npm test -- --coverage
-          # and ensure coverage/lcov.info exists.
           echo "Running SonarQube analysis..."
         '''
-        // Typical SonarQube Jenkins pattern (requires Jenkins SonarQube plugin configured):
-        // withSonarQubeEnv('SonarQubeServerName') {
-        //   sh 'sonar-scanner'
-        // }
-        // timeout(time: 5, unit: 'MINUTES') {
-        //   waitForQualityGate abortPipeline: false
-        // }
       }
     }
 
     stage('Resolve Image Tags') {
+      when { expression { return env.TARGET_ENV != "build" } }
       steps {
         script {
-          // Short SHA
-          def shortSha = sh(script: "git rev-parse --short=7 HEAD", returnStdout: true).trim()
-
-          // Multibranch pipelines often provide TAG_NAME if building a tag
-          def tagName = env.TAG_NAME?.trim()
-
-          // Fallback: try to detect exact tag on this commit
-          if (!tagName) {
-            tagName = sh(script: "git describe --tags --exact-match 2>/dev/null || true", returnStdout: true).trim()
-            if (tagName == "") { tagName = null }
-          }
-
-          // Remove leading 'v' if someone accidentally tags with v1.1.0 (you said you don't want v)
-          if (tagName && tagName.startsWith("v")) {
-            tagName = tagName.substring(1)
-          }
-
-          env.GIT_SHA_SHORT = shortSha
-          env.VERSION_TAG   = tagName ?: ""   // empty means "no version tag for this build"
-          env.BUILD_TAG     = env.BUILD_NUMBER
-          env.COMMIT_TAG    = "git-${shortSha}"
-
-          // Latest policy:
-          // - push latest only on main OR on version tag builds
-          def branch = env.BRANCH_NAME ?: ""
-          env.PUSH_LATEST = (branch == "main" || env.VERSION_TAG != "") ? "true" : "false"
-
-          echo "Resolved tags:"
-          echo "  VERSION_TAG = ${env.VERSION_TAG}"
-          echo "  BUILD_TAG   = ${env.BUILD_TAG}"
-          echo "  COMMIT_TAG  = ${env.COMMIT_TAG}"
-          echo "  PUSH_LATEST = ${env.PUSH_LATEST}"
+          env.IMAGE_TAG = env.BUILD_NUMBER
+          echo "Resolved image tag strategy:"
+          echo "  IMAGE_TAG (BUILD_NUMBER) = ${env.IMAGE_TAG}"
+          echo "  RELEASE_TAG (git tag)    = ${env.RELEASE_TAG ?: 'none'}"
         }
       }
     }
 
     stage('Container Build') {
+      when { expression { return env.TARGET_ENV != "build" } }
       steps {
         sh '''
           set -eux
-          docker build -f "${DOCKERFILE_PATH}" -t "${DOCKERHUB_USER}/${IMAGE_NAME}:${COMMIT_TAG}" .
+          docker build -f "${DOCKERFILE_PATH}" -t "${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}" .
         '''
       }
     }
 
     stage('Security Scan (Docker Scout - notify only, mandatory)') {
+      when { expression { return env.TARGET_ENV != "build" } }
       steps {
         sh '''
           set -eux
-          # Scan the image we just built (commit tag)
-          IMAGE="${DOCKERHUB_USER}/${IMAGE_NAME}:${COMMIT_TAG}" ./scripts/security-docker-scout-scan.sh
+          IMAGE="${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}" ./scripts/security-docker-scout-scan.sh
         '''
       }
     }
 
-    stage('Container Tag') {
+    stage('Tag Latest (Prod only)') {
+      when { expression { return env.TARGET_ENV == "prod" } }
       steps {
         sh '''
           set -eux
-          SRC="${DOCKERHUB_USER}/${IMAGE_NAME}:${COMMIT_TAG}"
-
-          # Always tag build number
-          docker tag "${SRC}" "${DOCKERHUB_USER}/${IMAGE_NAME}:${BUILD_TAG}"
-
-          # Tag version if present (build is running on a git tag like 1.1.0)
-          if [ -n "${VERSION_TAG}" ]; then
-            docker tag "${SRC}" "${DOCKERHUB_USER}/${IMAGE_NAME}:${VERSION_TAG}"
-          fi
-
-          # Tag latest only on main or tag builds
-          if [ "${PUSH_LATEST}" = "true" ]; then
-            docker tag "${SRC}" "${DOCKERHUB_USER}/${IMAGE_NAME}:latest"
-          fi
+          docker tag "${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}" "${DOCKERHUB_USER}/${IMAGE_NAME}:latest"
         '''
       }
     }
 
     stage('Container Push') {
+      when { expression { return env.TARGET_ENV != "build" } }
       steps {
         withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DH_USER', passwordVariable: 'DH_PASS')]) {
           sh '''
             set -eux
             echo "${DH_PASS}" | docker login -u "${DH_USER}" --password-stdin
+            docker push "${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
 
-            # Always push commit + build tags
-            docker push "${DOCKERHUB_USER}/${IMAGE_NAME}:${COMMIT_TAG}"
-            docker push "${DOCKERHUB_USER}/${IMAGE_NAME}:${BUILD_TAG}"
-
-            # Push version tag if present
-            if [ -n "${VERSION_TAG}" ]; then
-              docker push "${DOCKERHUB_USER}/${IMAGE_NAME}:${VERSION_TAG}"
-            fi
-
-            # Push latest only when allowed
-            if [ "${PUSH_LATEST}" = "true" ]; then
+            if [ "${TARGET_ENV}" = "prod" ]; then
               docker push "${DOCKERHUB_USER}/${IMAGE_NAME}:latest"
             fi
           '''
@@ -169,12 +142,67 @@ pipeline {
       }
     }
 
-    stage('Deploy') {
+    stage('Deploy (Dev)') {
+      when { expression { return env.TARGET_ENV == "dev" } }
       steps {
         sh '''
           set -eux
           echo "Deploy stage placeholder: will be implemented in Kubernetes phase."
-          echo "Image to deploy (preferred): ${DOCKERHUB_USER}/${IMAGE_NAME}:${VERSION_TAG:-${COMMIT_TAG}}"
+          echo "Deploying to DEV from develop branch"
+          echo "Image: ${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
+        '''
+      }
+    }
+
+    stage('Deploy (Staging)') {
+      when { expression { return env.TARGET_ENV == "staging" } }
+      steps {
+        sh '''
+          set -eux
+          echo "Deploy stage placeholder: will be implemented in Kubernetes phase."
+          echo "Deploying to STAGING from release branch"
+          echo "Image: ${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
+        '''
+      }
+    }
+
+    stage('Prod Eligibility Check (tag must be on main)') {
+      when { expression { return env.TARGET_ENV == "prod" } }
+      steps {
+        sh '''
+          set -eux
+          git fetch origin main --tags
+          if git merge-base --is-ancestor HEAD origin/main; then
+            echo "OK: Tagged commit is on main."
+          else
+            echo "BLOCK: Tagged commit is NOT on main. Merge release into main first."
+            exit 1
+          fi
+        '''
+      }
+    }
+
+    stage('Prod Approval') {
+      when { expression { return env.TARGET_ENV == "prod" } }
+      steps {
+        script {
+          timeout(time: 30, unit: 'MINUTES') {
+            input message: "Approve PROD deploy for ${env.IMAGE_NAME} on main? (Tag: ${env.RELEASE_TAG})", ok: "Deploy"
+          }
+        }
+      }
+    }
+
+    stage('Deploy (Prod)') {
+      when { expression { return env.TARGET_ENV == "prod" } }
+      steps {
+        sh '''
+          set -eux
+          echo "Deploy stage placeholder: will be implemented in Kubernetes phase."
+          echo "Deploying to PROD from main branch (manual trigger via git tag)"
+          echo "Release tag trigger: ${RELEASE_TAG}"
+          echo "Image: ${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
+          echo "Also pushed: ${DOCKERHUB_USER}/${IMAGE_NAME}:latest"
         '''
       }
     }
