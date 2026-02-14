@@ -95,19 +95,17 @@ pipeline {
                 -Dsonar.tests=tests \
                 -Dsonar.host.url="$SONAR_HOST_URL" \
                 -Dsonar.token="$SONAR_TOKEN" \
-                -Dsonar.scanner.metadataFilePath=/usr/src/report-task.txt
-
-              # confirm Jenkins can see it in workspace root
-              test -f report-task.txt
-              echo "report-task.txt found:"
-              cat report-task.txt
             '''
           }
-
-          timeout(time: 5, unit: 'MINUTES') {
-            waitForQualityGate abortPipeline: true
-          }
         }
+      }
+    }
+
+    stage('Quality Gate') {
+      steps {
+          timeout(time: 5, unit: 'MINUTES') {
+              waitForQualityGate abortPipeline: true
+          }
       }
     }
 
