@@ -112,10 +112,10 @@ pipeline {
             if (!releaseTag) {
               error("Prod build requires a Git tag (RELEASE_TAG). Ensure tag discovery is enabled and TAG_NAME is set.")
             }
-            env.IMAGE_TAG = releaseTag      // prod Docker tag = git tag (e.g., 1.1.0)
+            env.IMAGE_TAG = releaseTag
           } 
           else {
-            env.IMAGE_TAG = env.BUILD_NUMBER // dev/staging Docker tag = Jenkins build number
+            env.IMAGE_TAG = env.BUILD_NUMBER
           }
 
           echo "Resolved image tag strategy:"
