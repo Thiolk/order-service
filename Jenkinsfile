@@ -7,11 +7,6 @@ pipeline {
     DOCKERHUB_USER   = "thiolengkiat413"
     IMAGE_NAME       = "order-service"
     DOCKERFILE_PATH  = "deploy/docker/Dockerfile"
-
-    IMAGE_TAG   = ""
-    RELEASE_TAG = ""
-
-    TARGET_ENV = "build"
   }
 
   stages {
@@ -22,9 +17,10 @@ pipeline {
     stage('Determine Pipeline Mode') {
       steps {
         script {
+          env.IMAGE_TAG   = ""
+          env.TARGET_ENV = "build"
           def branch  = env.BRANCH_NAME ?: ""
           def tagName = env.TAG_NAME?.trim()
-
           env.RELEASE_TAG = tagName ?: ""
 
           if (tagName) {
