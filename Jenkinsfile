@@ -2,6 +2,8 @@ pipeline {
   agent any
 
   environment {
+    PATH = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
     DOCKERHUB_USER   = "thiolengkiat413"
     IMAGE_NAME       = "order-service"
     DOCKERFILE_PATH  = "deploy/docker/Dockerfile"
