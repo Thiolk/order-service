@@ -106,16 +106,15 @@ pipeline {
     stage('Resolve Image Tags') {
       steps {
         script {
-          def releaseTag = env.RELEASE_TAG?.trim()
+          def releaseTag = (env.RELEASE_TAG ?: "").trim()
 
           if (env.TARGET_ENV == "prod") {
             if (!releaseTag) {
-              error("Prod build requires a Git tag (RELEASE_TAG). Ensure tag discovery is enabled and TAG_NAME is set.")
+              error("Prod build requires a Git tag (RELEASE_TAG).")
             }
             env.IMAGE_TAG = releaseTag
-          } 
-          else {
-            env.IMAGE_TAG = env.BUILD_NUMBER
+          } else {
+            env.IMAGE_TAG = env.BUILD_NUMBER.toString()
           }
 
           echo "Resolved image tag strategy:"
