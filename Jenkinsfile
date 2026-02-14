@@ -86,7 +86,6 @@ pipeline {
             sh '''
               set -eux
 
-              # Ensure Sonar writes metadata into the mounted workspace root
               docker run --rm \
                 -v "$PWD:/usr/src" \
                 -w /usr/src \
@@ -94,18 +93,17 @@ pipeline {
                 -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
                 -Dsonar.sources=src \
                 -Dsonar.tests=tests \
-                -Dsonar.projectBaseDir=/usr/src \
-                -Dsonar.scanner.metadataFilePath=/usr/src/.scannerwork/report-task.txt \
                 -Dsonar.host.url="$SONAR_HOST_URL" \
-                -Dsonar.token="$SONAR_TOKEN"
+                -Dsonar.token="$SONAR_TOKEN" \
+                -Dsonar.scanner.metadataFilePath=/usr/src/report-task.txt
 
-              # Debug (optional, remove after first success)
-              ls -la .scannerwork || true
-              test -f .scannerwork/report-task.txt
+              # confirm Jenkins can see it in workspace root
+              test -f report-task.txt
+              echo "report-task.txt found:"
+              cat report-task.txt
             '''
           }
 
-          // Keep Quality Gate wait inside the Sonar env wrapper
           timeout(time: 5, unit: 'MINUTES') {
             waitForQualityGate abortPipeline: true
           }
