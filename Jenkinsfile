@@ -99,8 +99,8 @@ pipeline {
         script {
           env.IMAGE_TAG = env.BUILD_NUMBER
           echo "Resolved image tag strategy:"
-          echo "  IMAGE_TAG (BUILD_NUMBER) = ${env.IMAGE_TAG}"
-          echo "  RELEASE_TAG (git tag)    = ${env.RELEASE_TAG ?: 'none'}"
+          echo "IMAGE_TAG (BUILD_NUMBER) = ${env.IMAGE_TAG}"
+          echo "RELEASE_TAG (git tag)    = ${env.RELEASE_TAG ?: 'none'}"
         }
       }
     }

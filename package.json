@@ -7,8 +7,8 @@
     "lint": "eslint .",
     "format:check": "prettier --check .",
     "test": "jest --runInBand",
-    "test:unit": "jest --runInBand --testPathPattern=tests/unit",
-    "test:integration": "jest --runInBand --testPathPattern=tests/integration"
+    "test:unit": "jest --runInBand --testPathPattersn=tests/unit",
+    "test:integration": "jest --runInBand --testPathPatterns=tests/integration"
   },
   "dependencies": {
     "axios": "^1.4.0",
