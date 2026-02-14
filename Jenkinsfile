@@ -79,23 +79,24 @@ pipeline {
     stage('Static Analysis (SonarQube)') {
       environment {
         SONAR_PROJECT_KEY = 'order-service'
-        SONAR_HOST_URL = 'http://host.docker.internal:9005'
       }
       steps {
-        withCredentials([string(credentialsId: 'order-service-sonar', variable: 'SONAR_TOKEN')]) {
-          sh '''
-            set -eux
+        withSonarQubeEnv('SonarQubeServer') {
+          withCredentials([string(credentialsId: 'order-service-sonar', variable: 'SONAR_TOKEN')]) {
+            sh '''
+              set -eux
 
-            docker run --rm \
-              -v "$PWD:/usr/src" \
-              -w /usr/src \
-              sonarsource/sonar-scanner-cli:latest \
-              -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
-              -Dsonar.sources=src \
-              -Dsonar.tests=tests \
-              -Dsonar.host.url="$SONAR_HOST_URL" \
-              -Dsonar.token="$SONAR_TOKEN"
-          '''
+              docker run --rm \
+                -v "$PWD:/usr/src" \
+                -w /usr/src \
+                sonarsource/sonar-scanner-cli:latest \
+                -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
+                -Dsonar.sources=src \
+                -Dsonar.tests=tests \
+                -Dsonar.host.url="$SONAR_HOST_URL" \
+                -Dsonar.token="$SONAR_TOKEN"
+            '''
+          }
         }
 
         timeout(time: 5, unit: 'MINUTES') {
@@ -104,12 +105,15 @@ pipeline {
       }
     }
 
-
     stage('Resolve Image Tags') {
       when { expression { return env.TARGET_ENV != "build" } }
       steps {
         script {
-          env.IMAGE_TAG = env.BUILD_NUMBER
+          if (env.TARGET_ENV == "prod" && env.RELEASE_TAG) {
+            env.IMAGE_TAG = env.RELEASE_TAG
+          } else {
+            env.IMAGE_TAG = env.BUILD_NUMBER
+          }
           echo "Resolved image tag strategy:"
           echo "IMAGE_TAG (BUILD_NUMBER) = ${env.IMAGE_TAG}"
           echo "RELEASE_TAG (git tag)    = ${env.RELEASE_TAG ?: 'none'}"
@@ -234,7 +238,7 @@ pipeline {
     always {
       sh '''
         set +e
-        docker logout || true
+        echo "post actions will be set later"
       '''
     }
   }
