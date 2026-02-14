@@ -9,5 +9,5 @@ services:
       NODE_ENV: production
       PORT: ${ORDER_PORT_CONTAINER}
     ports:
-      - "${ORDER_PORT_HOST}:${ORDER_PORT_CONTAINER}"
+      - '${ORDER_PORT_HOST}:${ORDER_PORT_CONTAINER}'
     restart: unless-stopped

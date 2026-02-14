@@ -2,14 +2,11 @@ pipeline {
   agent any
 
   environment {
+    PATH = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
     DOCKERHUB_USER   = "thiolengkiat413"
     IMAGE_NAME       = "order-service"
     DOCKERFILE_PATH  = "deploy/docker/Dockerfile"
-
-    IMAGE_TAG   = ""
-    RELEASE_TAG = ""
-
-    TARGET_ENV = "none"
   }
 
   stages {
@@ -20,26 +17,22 @@ pipeline {
     stage('Determine Pipeline Mode') {
       steps {
         script {
-          def isPR   = env.CHANGE_ID?.trim()
-          def branch = env.BRANCH_NAME ?: ""
+          env.IMAGE_TAG   = ""
+          env.TARGET_ENV = "build"
+          def branch  = env.BRANCH_NAME ?: ""
           def tagName = env.TAG_NAME?.trim()
           env.RELEASE_TAG = tagName ?: ""
 
-          if (isPR) {
-            env.TARGET_ENV = "build"
-          } else if (tagName) {
+          if (tagName) {
             env.TARGET_ENV = "prod"        // manual trigger is pushing a git tag
           } else if (branch == "develop") {
             env.TARGET_ENV = "dev"
           } else if (branch.startsWith("release/")) {
             env.TARGET_ENV = "staging"
-          } else {
-            env.TARGET_ENV = "build"
           }
 
           echo "BRANCH_NAME: ${branch}"
           echo "TAG_NAME: ${tagName ?: 'none'}"
-          echo "CHANGE_ID: ${env.CHANGE_ID ?: 'none'}"
           echo "TARGET_ENV: ${env.TARGET_ENV}"
         }
       }
@@ -75,36 +68,63 @@ pipeline {
     }
 
     stage('Static Analysis (SonarQube)') {
+      environment {
+        SONAR_PROJECT_KEY = 'order-service'
+      }
       steps {
         withSonarQubeEnv('SonarQubeServer') {
-          sh '''
-            set -eux
-            # If/when you enable coverage, run: npm test -- --coverage
-            sonar-scanner
-          '''
-        }
-
-        timeout(time: 5, unit: 'MINUTES') {
-          waitForQualityGate abortPipeline: true
+          withCredentials([string(credentialsId: 'order-service-sonar', variable: 'SONAR_TOKEN')]) {
+            sh '''
+            set -eu
+            mkdir -p .scannerwork
+            docker run --rm \
+                -e SONAR_HOST_URL="http://host.docker.internal:9005" \
+                -e SONAR_TOKEN="$SONAR_AUTH_TOKEN" \
+                -v "$WORKSPACE:/usr/src" \
+                -w /usr/src \
+                sonarsource/sonar-scanner-cli:latest \
+                -Dsonar.userHome=/usr/src \
+                -Dsonar.working.directory=.scannerwork
+            '''
+          }
         }
       }
     }
 
+    stage('Quality Gate') {
+      steps {
+          timeout(time: 5, unit: 'MINUTES') {
+              waitForQualityGate abortPipeline: true
+          }
+      }
+    }
 
     stage('Resolve Image Tags') {
-      when { expression { return env.TARGET_ENV != "build" } }
       steps {
         script {
-          env.IMAGE_TAG = env.BUILD_NUMBER
+          def releaseTag = (env.RELEASE_TAG ?: "").trim()
+
+          if (env.TARGET_ENV == "prod") {
+            echo "Resolving production image tag"
+            if (!releaseTag) {
+              error("Prod build requires a Git tag (RELEASE_TAG).")
+            }
+            env.IMAGE_TAG = releaseTag
+          } else {
+            echo "setting image tag to build number"
+            env.IMAGE_TAG = env.BUILD_NUMBER.toString()
+          }
+
           echo "Resolved image tag strategy:"
-          echo "  IMAGE_TAG (BUILD_NUMBER) = ${env.IMAGE_TAG}"
-          echo "  RELEASE_TAG (git tag)    = ${env.RELEASE_TAG ?: 'none'}"
+          echo "  TARGET_ENV  = ${env.TARGET_ENV}"
+          echo "  IMAGE_TAG   = ${env.IMAGE_TAG}"
+          echo "  RELEASE_TAG = ${releaseTag ?: 'none'}"
+          echo "  BUILD_NUMBER= ${env.BUILD_NUMBER}"
         }
       }
     }
 
     stage('Container Build') {
-      when { expression { return env.TARGET_ENV != "build" } }
       steps {
         sh '''
           set -eux
@@ -114,7 +134,6 @@ pipeline {
     }
 
     stage('Security Scan (Docker Scout - notify only, mandatory)') {
-      when { expression { return env.TARGET_ENV != "build" } }
       steps {
         sh '''
           set -eux
@@ -220,7 +239,7 @@ pipeline {
     always {
       sh '''
         set +e
-        docker logout || true
+        echo "post actions will be set later"
       '''
     }
   }
