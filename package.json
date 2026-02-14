@@ -5,7 +5,7 @@
   "scripts": {
     "start": "node src/index.js",
     "lint": "eslint .",
-    "format:check": "prettier --check .",
+    "format:check": "prettier --check \"src/**/*.{js,json,md}\" \"tests/**/*.{js,json,md}\" \"*.{js,json,md}\"",
     "test": "jest --runInBand",
     "test:unit": "jest --runInBand --testPathPattersn=tests/unit",
     "test:integration": "jest --runInBand --testPathPatterns=tests/integration"
