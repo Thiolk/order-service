@@ -76,12 +76,20 @@ pipeline {
 
     stage('Static Analysis (SonarQube)') {
       steps {
-        sh '''
-          set -eux
-          echo "Running SonarQube analysis..."
-        '''
+        withSonarQubeEnv('SonarQubeServer') {
+          sh '''
+            set -eux
+            # If/when you enable coverage, run: npm test -- --coverage
+            sonar-scanner
+          '''
+        }
+
+        timeout(time: 5, unit: 'MINUTES') {
+          waitForQualityGate abortPipeline: true
+        }
       }
     }
+
 
     stage('Resolve Image Tags') {
       when { expression { return env.TARGET_ENV != "build" } }
