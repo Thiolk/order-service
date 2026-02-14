@@ -82,20 +82,19 @@ pipeline {
         SONAR_HOST_URL= 'http://host.docker.internal:9005'
       }
       steps {
-        withSonarQubeEnv('SonarQubeServer') {
+        withSonarQubeEnv('sonarqube-local') {
           withCredentials([string(credentialsId: 'order-service-sonar', variable: 'SONAR_TOKEN')]) {
             sh '''
-              set -eux
-
-              docker run --rm \
-                -v "$PWD:/usr/src" \
+            set -eu
+            mkdir -p .scannerwork
+            docker run --rm \
+                -e SONAR_HOST_URL="$SONAR_HOST_URL" \
+                -e SONAR_TOKEN="$SONAR_AUTH_TOKEN" \
+                -v "$WORKSPACE:/usr/src" \
                 -w /usr/src \
                 sonarsource/sonar-scanner-cli:latest \
-                -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
-                -Dsonar.sources=src \
-                -Dsonar.tests=tests \
-                -Dsonar.host.url="$SONAR_HOST_URL" \
-                -Dsonar.token="$SONAR_TOKEN" \
+                -Dsonar.userHome=/usr/src \
+                -Dsonar.working.directory=.scannerwork
             '''
           }
         }
