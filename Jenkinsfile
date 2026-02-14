@@ -22,9 +22,10 @@ pipeline {
     stage('Determine Pipeline Mode') {
       steps {
         script {
-          def isPR   = env.CHANGE_ID?.trim()
-          def branch = env.BRANCH_NAME ?: ""
+          def isPR    = env.CHANGE_ID?.trim()
+          def branch  = env.BRANCH_NAME ?: ""
           def tagName = env.TAG_NAME?.trim()
+
           env.RELEASE_TAG = tagName ?: ""
 
           if (isPR) {
@@ -112,14 +113,22 @@ pipeline {
       when { expression { return env.TARGET_ENV != "build" } }
       steps {
         script {
-          if (env.TARGET_ENV == "prod" && env.RELEASE_TAG) {
-            env.IMAGE_TAG = env.RELEASE_TAG
+          def releaseTag = env.RELEASE_TAG?.trim()
+
+          if (env.TARGET_ENV == "prod") {
+            if (!releaseTag) {
+              error("Prod build requires a Git tag (RELEASE_TAG). Ensure tag discovery is enabled and TAG_NAME is set.")
+            }
+            env.IMAGE_TAG = releaseTag      // prod Docker tag = git tag (e.g., 1.1.0)
           } else {
-            env.IMAGE_TAG = env.BUILD_NUMBER
+            env.IMAGE_TAG = env.BUILD_NUMBER // dev/staging Docker tag = Jenkins build number
           }
+
           echo "Resolved image tag strategy:"
-          echo "IMAGE_TAG (BUILD_NUMBER) = ${env.IMAGE_TAG}"
-          echo "RELEASE_TAG (git tag)    = ${env.RELEASE_TAG ?: 'none'}"
+          echo "  TARGET_ENV  = ${env.TARGET_ENV}"
+          echo "  IMAGE_TAG   = ${env.IMAGE_TAG}"
+          echo "  RELEASE_TAG = ${releaseTag ?: 'none'}"
+          echo "  BUILD_NUMBER= ${env.BUILD_NUMBER}"
         }
       }
     }
