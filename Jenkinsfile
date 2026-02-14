@@ -82,7 +82,7 @@ pipeline {
         SONAR_HOST_URL= 'http://host.docker.internal:9005'
       }
       steps {
-        withSonarQubeEnv('sonarqube-local') {
+        withSonarQubeEnv('SonarQubeServer') {
           withCredentials([string(credentialsId: 'order-service-sonar', variable: 'SONAR_TOKEN')]) {
             sh '''
             set -eu
