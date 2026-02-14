@@ -109,11 +109,13 @@ pipeline {
           def releaseTag = (env.RELEASE_TAG ?: "").trim()
 
           if (env.TARGET_ENV == "prod") {
+            echo "Resolving production image tag"
             if (!releaseTag) {
               error("Prod build requires a Git tag (RELEASE_TAG).")
             }
             env.IMAGE_TAG = releaseTag
           } else {
+            echo "setting image tag to build number"
             env.IMAGE_TAG = env.BUILD_NUMBER.toString()
           }
 
