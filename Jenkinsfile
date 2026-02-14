@@ -79,25 +79,23 @@ pipeline {
     stage('Static Analysis (SonarQube)') {
       environment {
         SONAR_PROJECT_KEY = 'order-service'
+        SONAR_HOST_URL = 'http://host.docker.internal:9005'
       }
       steps {
-        // Name must match the SonarQube server name in "Manage Jenkins → Configure System"
-        withSonarQubeEnv('SonarQubeServer') {
-          withCredentials([string(credentialsId: 'order-service-sonar', variable: 'SONAR_TOKEN')]) {
-            sh '''
-              set -eux
+        withCredentials([string(credentialsId: 'order-service-sonar', variable: 'SONAR_TOKEN')]) {
+          sh '''
+            set -eux
 
-              docker run --rm \
-                -v "$PWD:/usr/src" \
-                -w /usr/src \
-                sonarsource/sonar-scanner-cli:latest \
-                -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
-                -Dsonar.sources=src \
-                -Dsonar.tests=tests \
-                -Dsonar.host.url="$SONAR_HOST_URL" \
-                -Dsonar.token="$SONAR_TOKEN"
-            '''
-          }
+            docker run --rm \
+              -v "$PWD:/usr/src" \
+              -w /usr/src \
+              sonarsource/sonar-scanner-cli:latest \
+              -Dsonar.projectKey="$SONAR_PROJECT_KEY" \
+              -Dsonar.sources=src \
+              -Dsonar.tests=tests \
+              -Dsonar.host.url="$SONAR_HOST_URL" \
+              -Dsonar.token="$SONAR_TOKEN"
+          '''
         }
 
         timeout(time: 5, unit: 'MINUTES') {
