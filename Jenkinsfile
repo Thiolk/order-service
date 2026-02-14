@@ -79,6 +79,7 @@ pipeline {
     stage('Static Analysis (SonarQube)') {
       environment {
         SONAR_PROJECT_KEY = 'order-service'
+        SONAR_HOST_URL= 'http://host.docker.internal:9005'
       }
       steps {
         withSonarQubeEnv('SonarQubeServer') {
