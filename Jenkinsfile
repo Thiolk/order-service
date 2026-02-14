@@ -11,7 +11,7 @@ pipeline {
     IMAGE_TAG   = ""
     RELEASE_TAG = ""
 
-    TARGET_ENV = "none"
+    TARGET_ENV = "build"
   }
 
   stages {
@@ -22,27 +22,21 @@ pipeline {
     stage('Determine Pipeline Mode') {
       steps {
         script {
-          def isPR    = env.CHANGE_ID?.trim()
           def branch  = env.BRANCH_NAME ?: ""
           def tagName = env.TAG_NAME?.trim()
 
           env.RELEASE_TAG = tagName ?: ""
 
-          if (isPR) {
-            env.TARGET_ENV = "build"
-          } else if (tagName) {
+          if (tagName) {
             env.TARGET_ENV = "prod"        // manual trigger is pushing a git tag
           } else if (branch == "develop") {
             env.TARGET_ENV = "dev"
           } else if (branch.startsWith("release/")) {
             env.TARGET_ENV = "staging"
-          } else {
-            env.TARGET_ENV = "build"
           }
 
           echo "BRANCH_NAME: ${branch}"
           echo "TAG_NAME: ${tagName ?: 'none'}"
-          echo "CHANGE_ID: ${env.CHANGE_ID ?: 'none'}"
           echo "TARGET_ENV: ${env.TARGET_ENV}"
         }
       }
