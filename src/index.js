@@ -13,7 +13,7 @@ const pool = new Pool({
     database: process.env.DB_NAME || 'ecommerce',
     user: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASSWORD || 'password',
-    port: 5432,
+    port: Number(process.env.DB_PORT) || 5432,
 });
 
 // Health check
