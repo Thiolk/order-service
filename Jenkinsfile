@@ -104,7 +104,6 @@ pipeline {
     }
 
     stage('Resolve Image Tags') {
-      when { expression { return env.TARGET_ENV != "build" } }
       steps {
         script {
           def releaseTag = env.RELEASE_TAG?.trim()
@@ -128,7 +127,6 @@ pipeline {
     }
 
     stage('Container Build') {
-      when { expression { return env.TARGET_ENV != "build" } }
       steps {
         sh '''
           set -eux
@@ -138,7 +136,6 @@ pipeline {
     }
 
     stage('Security Scan (Docker Scout - notify only, mandatory)') {
-      when { expression { return env.TARGET_ENV != "build" } }
       steps {
         sh '''
           set -eux
