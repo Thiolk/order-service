@@ -1,17 +1,17 @@
-const globals = require("globals");
+const globals = require('globals');
 
 module.exports = [
   // Ignore junk
   {
-    ignores: ["node_modules/**", "coverage/**", "cache/**", ".scannerwork/**"],
+    ignores: ['node_modules/**', 'coverage/**', 'cache/**', '.scannerwork/**'],
   },
 
   // App code (Node/CommonJS)
   {
-    files: ["**/*.js"],
+    files: ['**/*.js'],
     languageOptions: {
-      ecmaVersion: "latest",
-      sourceType: "commonjs",
+      ecmaVersion: 'latest',
+      sourceType: 'commonjs',
       globals: {
         ...globals.node,
       },
@@ -21,10 +21,10 @@ module.exports = [
 
   // Tests (Node + Jest)
   {
-    files: ["tests/**/*.js"],
+    files: ['tests/**/*.js'],
     languageOptions: {
-      ecmaVersion: "latest",
-      sourceType: "commonjs",
+      ecmaVersion: 'latest',
+      sourceType: 'commonjs',
       globals: {
         ...globals.node,
         ...globals.jest,
