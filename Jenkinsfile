@@ -85,7 +85,6 @@ pipeline {
               -Dsonar.userHome=/usr/src \
               -Dsonar.working.directory=.scannerwork
           '''
-          }
         }
       }
     }
