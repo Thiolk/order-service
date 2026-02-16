@@ -85,6 +85,11 @@ index.patch('/orders/:id', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3002;
-index.listen(PORT, () => {
-  console.log(`Order service running on port ${PORT}`);
-});
+
+if (require.main === module) {
+  index.listen(PORT, () => {
+    console.log(`Order service running on port ${PORT}`);
+  });
+}
+
+module.exports = { index };
