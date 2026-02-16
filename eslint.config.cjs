@@ -1,44 +1,35 @@
-const js = require('@eslint/js');
+const globals = require("globals");
 
 module.exports = [
-  js.configs.recommended,
-
-  // Node app code
+  // Ignore junk
   {
-    files: ['src/**/*.js', '*.js'],
-    ignores: ['node_modules/**', 'coverage/**', 'deploy/**'],
-    languageOptions: {
-      ecmaVersion: 'latest',
-      sourceType: 'commonjs',
-      globals: {
-        process: 'readonly',
-        console: 'readonly',
-        module: 'readonly',
-        require: 'readonly',
-        __dirname: 'readonly',
-      },
-    },
-    rules: {
-      'no-unused-vars': ['warn', { argsIgnorePattern: '^_' }],
-      'no-console': 'off',
-    },
+    ignores: ["node_modules/**", "coverage/**", "cache/**", ".scannerwork/**"],
   },
 
-  // Jest tests
+  // App code (Node/CommonJS)
   {
-    files: ['tests/**/*.js', '**/*.test.js', '**/*.spec.js'],
+    files: ["**/*.js"],
     languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "commonjs",
       globals: {
-        test: 'readonly',
-        expect: 'readonly',
-        describe: 'readonly',
-        it: 'readonly',
-        beforeAll: 'readonly',
-        beforeEach: 'readonly',
-        afterAll: 'readonly',
-        afterEach: 'readonly',
-        jest: 'readonly',
+        ...globals.node,
       },
     },
+    rules: {},
+  },
+
+  // Tests (Node + Jest)
+  {
+    files: ["tests/**/*.js"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "commonjs",
+      globals: {
+        ...globals.node,
+        ...globals.jest,
+      },
+    },
+    rules: {},
   },
 ];
