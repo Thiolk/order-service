@@ -2,14 +2,11 @@ pipeline {
   agent any
 
   environment {
+    PATH = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
     DOCKERHUB_USER   = "thiolengkiat413"
     IMAGE_NAME       = "order-service"
     DOCKERFILE_PATH  = "deploy/docker/Dockerfile"
-
-    IMAGE_TAG   = ""
-    RELEASE_TAG = ""
-
-    TARGET_ENV = "none"
   }
 
   stages {
@@ -20,32 +17,33 @@ pipeline {
     stage('Determine Pipeline Mode') {
       steps {
         script {
-          def isPR   = env.CHANGE_ID?.trim()
-          def branch = env.BRANCH_NAME ?: ""
+          env.IMAGE_TAG   = ""
+          env.TARGET_ENV = "build"
+          def branch  = env.BRANCH_NAME ?: ""
           def tagName = env.TAG_NAME?.trim()
           env.RELEASE_TAG = tagName ?: ""
 
-          if (isPR) {
-            env.TARGET_ENV = "build"
-          } else if (tagName) {
-            env.TARGET_ENV = "prod"        // manual trigger is pushing a git tag
+          if (tagName) {
+            env.TARGET_ENV = "prod"
+          } else if (branch == "main") {
+            env.TARGET_ENV = "staging"          // promotion/deploy-to-staging happens here
           } else if (branch == "develop") {
             env.TARGET_ENV = "dev"
           } else if (branch.startsWith("release/")) {
-            env.TARGET_ENV = "staging"
+            env.TARGET_ENV = "rc"               // release candidate validation only
           } else {
-            env.TARGET_ENV = "build"
+            env.TARGET_ENV = "build"            // feature/* or other branches
           }
 
           echo "BRANCH_NAME: ${branch}"
           echo "TAG_NAME: ${tagName ?: 'none'}"
-          echo "CHANGE_ID: ${env.CHANGE_ID ?: 'none'}"
           echo "TARGET_ENV: ${env.TARGET_ENV}"
         }
       }
     }
 
     stage('Build (Lint/Format)') {
+      when { expression { env.TARGET_ENV == "build" } }
       steps {
         sh '''
           set -eux
@@ -66,6 +64,7 @@ pipeline {
     }
 
     stage('Test (Integration)') {
+      when { expression { env.TARGET_ENV in ["build", "rc"] } }
       steps {
         sh '''
           set -eux
@@ -75,36 +74,63 @@ pipeline {
     }
 
     stage('Static Analysis (SonarQube)') {
+      when { expression { env.TARGET_ENV == "build" } }
+      environment {
+        SONAR_PROJECT_KEY = 'order-service'
+      }
       steps {
         withSonarQubeEnv('SonarQubeServer') {
           sh '''
-            set -eux
-            # If/when you enable coverage, run: npm test -- --coverage
-            sonar-scanner
+          set -eu
+          mkdir -p .scannerwork
+          docker run --rm \
+              -e SONAR_HOST_URL="http://host.docker.internal:9005" \
+              -e SONAR_TOKEN="$SONAR_AUTH_TOKEN" \
+              -v "$WORKSPACE:/usr/src" \
+              -w /usr/src \
+              sonarsource/sonar-scanner-cli:latest \
+              -Dsonar.userHome=/usr/src \
+              -Dsonar.working.directory=.scannerwork
           '''
-        }
-
-        timeout(time: 5, unit: 'MINUTES') {
-          waitForQualityGate abortPipeline: true
         }
       }
     }
 
+    stage('Quality Gate') {
+      when { expression { env.TARGET_ENV == "build" } }
+      steps {
+          timeout(time: 5, unit: 'MINUTES') {
+              waitForQualityGate abortPipeline: true
+          }
+      }
+    }
 
     stage('Resolve Image Tags') {
-      when { expression { return env.TARGET_ENV != "build" } }
       steps {
         script {
-          env.IMAGE_TAG = env.BUILD_NUMBER
+          def releaseTag = (env.RELEASE_TAG ?: "").trim()
+
+          if (env.TARGET_ENV == "prod") {
+            echo "Resolving production image tag"
+            if (!releaseTag) {
+              error("Prod build requires a Git tag (RELEASE_TAG).")
+            }
+            env.IMAGE_TAG = releaseTag
+          } else {
+            echo "setting image tag to build number"
+            env.IMAGE_TAG = "${env.TARGET_ENV}-${env.BUILD_NUMBER}"
+          }
+
           echo "Resolved image tag strategy:"
-          echo "  IMAGE_TAG (BUILD_NUMBER) = ${env.IMAGE_TAG}"
-          echo "  RELEASE_TAG (git tag)    = ${env.RELEASE_TAG ?: 'none'}"
+          echo "  TARGET_ENV  = ${env.TARGET_ENV}"
+          echo "  IMAGE_TAG   = ${env.IMAGE_TAG}"
+          echo "  RELEASE_TAG = ${releaseTag ?: 'none'}"
+          echo "  BUILD_NUMBER= ${env.BUILD_NUMBER}"
         }
       }
     }
 
     stage('Container Build') {
-      when { expression { return env.TARGET_ENV != "build" } }
       steps {
         sh '''
           set -eux
@@ -114,7 +140,6 @@ pipeline {
     }
 
     stage('Security Scan (Docker Scout - notify only, mandatory)') {
-      when { expression { return env.TARGET_ENV != "build" } }
       steps {
         sh '''
           set -eux
@@ -163,7 +188,7 @@ pipeline {
     }
 
     stage('Deploy (Staging)') {
-      when { expression { return env.TARGET_ENV == "staging" } }
+      when { expression { env.TARGET_ENV == "staging" } }
       steps {
         sh '''
           set -eux
@@ -179,11 +204,17 @@ pipeline {
       steps {
         sh '''
           set -eux
-          git fetch origin main --tags
-          if git merge-base --is-ancestor HEAD origin/main; then
-            echo "OK: Tagged commit is on main."
+
+          echo "HEAD:"
+          git show -s --oneline --decorate HEAD
+
+          echo "Tags pointing at HEAD:"
+          git tag --points-at HEAD
+
+          if git tag --points-at HEAD | grep -qx "${TAG_NAME}"; then
+            echo "OK: HEAD is correctly tagged with ${TAG_NAME}"
           else
-            echo "BLOCK: Tagged commit is NOT on main. Merge release into main first."
+            echo "BLOCK: HEAD is not tagged with ${TAG_NAME}"
             exit 1
           fi
         '''
@@ -220,7 +251,7 @@ pipeline {
     always {
       sh '''
         set +e
-        docker logout || true
+        echo "post actions will be set later"
       '''
     }
   }

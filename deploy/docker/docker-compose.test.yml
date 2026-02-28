@@ -6,9 +6,13 @@ services:
       POSTGRES_USER: ${DB_USER:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
     ports:
-      - "5432:5432"
+      - '5432:5432'
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-ecommerce}"]
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-ecommerce}',
+        ]
       interval: 5s
       timeout: 3s
       retries: 30
@@ -30,4 +34,4 @@ services:
       db:
         condition: service_healthy
     ports:
-      - "${ORDER_PORT_HOST:-5001}:${ORDER_PORT_CONTAINER:-3002}"
+      - '${ORDER_PORT_HOST:-5001}:${ORDER_PORT_CONTAINER:-3002}'
