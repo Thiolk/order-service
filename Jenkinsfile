@@ -7,6 +7,8 @@ pipeline {
     DOCKERHUB_USER   = "thiolengkiat413"
     IMAGE_NAME       = "order-service"
     DOCKERFILE_PATH  = "deploy/docker/Dockerfile"
+
+    K8S_DIR = "k8s/order-service/overlays"
   }
 
   stages {
@@ -42,12 +44,20 @@ pipeline {
       }
     }
 
+    stage('Install Deps') {
+      steps {
+        sh '''
+          set -eux
+          npm ci
+        '''
+      }
+    }
+
     stage('Build (Lint/Format)') {
       when { expression { env.TARGET_ENV == "build" } }
       steps {
         sh '''
           set -eux
-          npm ci
           npm run lint
           npm run format:check
         '''
@@ -159,7 +169,7 @@ pipeline {
     }
 
     stage('Container Push') {
-      when { expression { return env.TARGET_ENV != "build" } }
+      when { expression { return env.TARGET_ENV in ["dev","staging","prod"] } }
       steps {
         withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DH_USER', passwordVariable: 'DH_PASS')]) {
           sh '''
@@ -178,24 +188,54 @@ pipeline {
     stage('Deploy (Dev)') {
       when { expression { return env.TARGET_ENV == "dev" } }
       steps {
-        sh '''
-          set -eux
-          echo "Deploy stage placeholder: will be implemented in Kubernetes phase."
-          echo "Deploying to DEV from develop branch"
-          echo "Image: ${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
-        '''
+        withCredentials([file(credentialsId: 'kubeconfig-minikube', variable: 'KUBECONFIG_FILE')]) {
+          sh '''
+            set -eux
+            export KUBECONFIG="$KUBECONFIG_FILE"
+
+            NS=dev
+            HOST="order-dev.local"
+            OVERLAY="${K8S_DIR}/dev"
+            IMAGE="${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
+
+            # Apply manifests from overlay
+            kubectl -n "$NS" apply -f <(kubectl kustomize "$OVERLAY")
+
+            # Inject the image tag produced by Jenkins
+            kubectl -n "$NS" set image deployment/order-service order-service="$IMAGE"
+
+            # Wait for rollout
+            kubectl -n "$NS" rollout status deployment/order-service --timeout=180s
+
+            # Smoke test via ingress
+            ING_URL=$(minikube service -n ingress-nginx ingress-nginx-controller --url | head -n 1)
+            curl -fsS -i -H "Host: $HOST" "$ING_URL/health"
+          '''
+        }
       }
     }
 
     stage('Deploy (Staging)') {
-      when { expression { env.TARGET_ENV == "staging" } }
+      when { expression { return env.TARGET_ENV == "staging" } }
       steps {
-        sh '''
-          set -eux
-          echo "Deploy stage placeholder: will be implemented in Kubernetes phase."
-          echo "Deploying to STAGING from release branch"
-          echo "Image: ${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
-        '''
+        withCredentials([file(credentialsId: 'kubeconfig-minikube', variable: 'KUBECONFIG_FILE')]) {
+          sh '''
+            set -eux
+            export KUBECONFIG="$KUBECONFIG_FILE"
+
+            NS=staging
+            HOST="order-staging.local"
+            OVERLAY="${K8S_DIR}/staging"
+            IMAGE="${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
+
+            kubectl -n "$NS" apply -f <(kubectl kustomize "$OVERLAY")
+            kubectl -n "$NS" set image deployment/order-service order-service="$IMAGE"
+            kubectl -n "$NS" rollout status deployment/order-service --timeout=180s
+
+            ING_URL=$(minikube service -n ingress-nginx ingress-nginx-controller --url | head -n 1)
+            curl -fsS -i -H "Host: $HOST" "$ING_URL/health"
+          '''
+        }
       }
     }
 
@@ -235,14 +275,24 @@ pipeline {
     stage('Deploy (Prod)') {
       when { expression { return env.TARGET_ENV == "prod" } }
       steps {
-        sh '''
-          set -eux
-          echo "Deploy stage placeholder: will be implemented in Kubernetes phase."
-          echo "Deploying to PROD from main branch (manual trigger via git tag)"
-          echo "Release tag trigger: ${RELEASE_TAG}"
-          echo "Image: ${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
-          echo "Also pushed: ${DOCKERHUB_USER}/${IMAGE_NAME}:latest"
-        '''
+        withCredentials([file(credentialsId: 'kubeconfig-minikube', variable: 'KUBECONFIG_FILE')]) {
+          sh '''
+            set -eux
+            export KUBECONFIG="$KUBECONFIG_FILE"
+
+            NS=prod
+            HOST="order-prod.local"
+            OVERLAY="${K8S_DIR}/prod"
+            IMAGE="${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
+
+            kubectl -n "$NS" apply -f <(kubectl kustomize "$OVERLAY")
+            kubectl -n "$NS" set image deployment/order-service order-service="$IMAGE"
+            kubectl -n "$NS" rollout status deployment/order-service --timeout=180s
+
+            ING_URL=$(minikube service -n ingress-nginx ingress-nginx-controller --url | head -n 1)
+            curl -fsS -i -H "Host: $HOST" "$ING_URL/health"
+          '''
+        }
       }
     }
   }
