@@ -1,0 +1,1 @@
+[{ "op": "replace", "path": "/spec/rules/0/host", "value": "order-dev.local" }]
