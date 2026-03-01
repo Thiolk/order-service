@@ -218,7 +218,7 @@ pipeline {
             IMAGE="${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
 
             # Apply manifests from overlay
-            kubectl -n "$NS" apply -f <(kubectl kustomize "$OVERLAY")
+            kubectl kustomize "$OVERLAY" | kubectl -n "$NS" apply -f -
 
             # Inject the image tag produced by Jenkins
             kubectl -n "$NS" set image deployment/order-service order-service="$IMAGE"
@@ -247,7 +247,7 @@ pipeline {
             OVERLAY="${K8S_DIR}/staging"
             IMAGE="${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
 
-            kubectl -n "$NS" apply -f <(kubectl kustomize "$OVERLAY")
+            kubectl kustomize "$OVERLAY" | kubectl -n "$NS" apply -f -
             kubectl -n "$NS" set image deployment/order-service order-service="$IMAGE"
             kubectl -n "$NS" rollout status deployment/order-service --timeout=180s
 
@@ -304,7 +304,7 @@ pipeline {
             OVERLAY="${K8S_DIR}/prod"
             IMAGE="${DOCKERHUB_USER}/${IMAGE_NAME}:${IMAGE_TAG}"
 
-            kubectl -n "$NS" apply -f <(kubectl kustomize "$OVERLAY")
+            kubectl kustomize "$OVERLAY" | kubectl -n "$NS" apply -f -
             kubectl -n "$NS" set image deployment/order-service order-service="$IMAGE"
             kubectl -n "$NS" rollout status deployment/order-service --timeout=180s
 
