@@ -92,11 +92,13 @@ pipeline {
         withSonarQubeEnv('SonarQubeServer') {
           sh '''
             set -eux
+            mkdir -p .scannerwork
+
             sonar-scanner \
-              -Dsonar.projectKey=order-service \
-              -Dsonar.sources=. \
-              -Dsonar.host.url="$SONAR_HOST_URL" \
-              -Dsonar.token="$SONAR_AUTH_TOKEN"
+              -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
+              -Dsonar.host.url="${SONAR_HOST_URL}" \
+              -Dsonar.token="${SONAR_AUTH_TOKEN}" \
+              -Dsonar.working.directory=".scannerwork"
           '''
         }
       }
