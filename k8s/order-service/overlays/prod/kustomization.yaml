@@ -21,9 +21,7 @@ patches:
       name: order-service
   - path: ingress-host-patch.json
     target:
-        group: networking.k8s.io
-        version: v1
-        kind: Ingress
-        name: order-service
-    
-
+      group: networking.k8s.io
+      version: v1
+      kind: Ingress
+      name: order-service

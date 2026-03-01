@@ -3,10 +3,10 @@ kind: ConfigMap
 metadata:
   name: order-service-config
 data:
-  NODE_ENV: "production"
-  PORT: "3002"
+  NODE_ENV: 'production'
+  PORT: '3002'
 
   # DB connectivity (service name inside the cluster)
-  DB_HOST: "postgres"
-  DB_PORT: "5432"
-  DB_NAME: "ecommerce"
+  DB_HOST: 'postgres'
+  DB_PORT: '5432'
+  DB_NAME: 'ecommerce'
