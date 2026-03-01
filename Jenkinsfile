@@ -1,13 +1,6 @@
 pipeline {
   agent any
 
-  parameters {
-    choice(name: 'FORCE_ENV', choices: ['', 'build', 'rc', 'dev', 'staging', 'prod'],
-          description: 'Override TARGET_ENV for testing. Leave blank for normal logic.')
-    string(name: 'FORCE_RELEASE_TAG', defaultValue: '',
-          description: 'If FORCE_ENV=prod, provide a tag like v1.2.3 (testing only).')
-  }
-
   environment {
     PATH = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
@@ -43,20 +36,6 @@ pipeline {
           } else {
             env.TARGET_ENV = "build"            // feature/* or other branches
           }
-
-          // ----- MANUAL OVERRIDE FOR TESTING -----
-          def forced = (params.FORCE_ENV ?: "").trim()
-          if (forced) {
-            env.TARGET_ENV = forced
-            if (forced == "prod") {
-              def forcedTag = (params.FORCE_RELEASE_TAG ?: "").trim()
-              if (forcedTag) {
-                env.RELEASE_TAG = forcedTag
-              }
-            }
-            echo "FORCE_ENV override applied => TARGET_ENV=${env.TARGET_ENV}, RELEASE_TAG=${env.RELEASE_TAG ?: 'none'}"
-          }
-          // ---------------------------------------
 
           echo "BRANCH_NAME: ${branch}"
           echo "TAG_NAME: ${tagName ?: 'none'}"
