@@ -226,9 +226,35 @@ pipeline {
             # Wait for rollout
             kubectl -n "$NS" rollout status deployment/order-service --timeout=180s
 
-            # Smoke test via ingress
-            ING_URL=$(minikube service -n ingress-nginx ingress-nginx-controller --url | head -n 1)
-            curl -fsS -i -H "Host: $HOST" "$ING_URL/health"
+            # --- Smoke test via ingress using kubectl port-forward (CI-safe on macOS Docker driver) ---
+
+            # Start port-forward in background
+            kubectl -n ingress-nginx port-forward svc/ingress-nginx-controller 18080:80 >/tmp/ingress-pf.log 2>&1 &
+            PF_PID=$!
+
+            # Always kill port-forward when the step ends (success or fail)
+            trap 'kill $PF_PID >/dev/null 2>&1 || true' EXIT INT TERM
+
+            # Wait until the port-forward is ready (up to ~30s)
+            i=1
+            while [ $i -le 30 ]; do
+              if curl -fsS -o /dev/null "http://127.0.0.1:18080/"; then
+                break
+              fi
+              sleep 1
+              i=$((i+1))
+            done
+
+            # If still not up, print logs and fail
+            if ! curl -fsS -o /dev/null "http://127.0.0.1:18080/"; then
+              echo "ERROR: ingress port-forward did not become ready"
+              echo "--- /tmp/ingress-pf.log ---"
+              cat /tmp/ingress-pf.log || true
+              exit 1
+            fi
+
+            # Your proven Host-header method, now against localhost:18080
+            curl -fsS -i -H "Host: $HOST" "http://127.0.0.1:18080/health"
           '''
         }
       }
@@ -251,8 +277,34 @@ pipeline {
             kubectl -n "$NS" set image deployment/order-service order-service="$IMAGE"
             kubectl -n "$NS" rollout status deployment/order-service --timeout=180s
 
-            ING_URL=$(minikube service -n ingress-nginx ingress-nginx-controller --url | head -n 1)
-            curl -fsS -i -H "Host: $HOST" "$ING_URL/health"
+            # --- Smoke test via ingress using kubectl port-forward (CI-safe on macOS Docker driver) ---
+            # Start port-forward in background
+            kubectl -n ingress-nginx port-forward svc/ingress-nginx-controller 18080:80 >/tmp/ingress-pf.log 2>&1 &
+            PF_PID=$!
+
+            # Always kill port-forward when the step ends (success or fail)
+            trap 'kill $PF_PID >/dev/null 2>&1 || true' EXIT INT TERM
+
+            # Wait until the port-forward is ready (up to ~30s)
+            i=1
+            while [ $i -le 30 ]; do
+              if curl -fsS -o /dev/null "http://127.0.0.1:18080/"; then
+                break
+              fi
+              sleep 1
+              i=$((i+1))
+            done
+
+            # If still not up, print logs and fail
+            if ! curl -fsS -o /dev/null "http://127.0.0.1:18080/"; then
+              echo "ERROR: ingress port-forward did not become ready"
+              echo "--- /tmp/ingress-pf.log ---"
+              cat /tmp/ingress-pf.log || true
+              exit 1
+            fi
+
+            # Your proven Host-header method, now against localhost:18080
+            curl -fsS -i -H "Host: $HOST" "http://127.0.0.1:18080/health"
           '''
         }
       }
@@ -308,8 +360,35 @@ pipeline {
             kubectl -n "$NS" set image deployment/order-service order-service="$IMAGE"
             kubectl -n "$NS" rollout status deployment/order-service --timeout=180s
 
-            ING_URL=$(minikube service -n ingress-nginx ingress-nginx-controller --url | head -n 1)
-            curl -fsS -i -H "Host: $HOST" "$ING_URL/health"
+            # --- Smoke test via ingress using kubectl port-forward (CI-safe on macOS Docker driver) ---
+
+            # Start port-forward in background
+            kubectl -n ingress-nginx port-forward svc/ingress-nginx-controller 18080:80 >/tmp/ingress-pf.log 2>&1 &
+            PF_PID=$!
+
+            # Always kill port-forward when the step ends (success or fail)
+            trap 'kill $PF_PID >/dev/null 2>&1 || true' EXIT INT TERM
+
+            # Wait until the port-forward is ready (up to ~30s)
+            i=1
+            while [ $i -le 30 ]; do
+              if curl -fsS -o /dev/null "http://127.0.0.1:18080/"; then
+                break
+              fi
+              sleep 1
+              i=$((i+1))
+            done
+
+            # If still not up, print logs and fail
+            if ! curl -fsS -o /dev/null "http://127.0.0.1:18080/"; then
+              echo "ERROR: ingress port-forward did not become ready"
+              echo "--- /tmp/ingress-pf.log ---"
+              cat /tmp/ingress-pf.log || true
+              exit 1
+            fi
+
+            # Your proven Host-header method, now against localhost:18080
+            curl -fsS -i -H "Host: $HOST" "http://127.0.0.1:18080/health"
           '''
         }
       }
