@@ -22,7 +22,7 @@ Multibranch Pipeline with environment-aware deployments.
 
 ## Version
 
-- Current release: 2.0.0
+- Current release: 2.1.0
 
 ---
 
