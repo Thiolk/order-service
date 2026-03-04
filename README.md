@@ -132,6 +132,7 @@ npm run test:integration
 Kubernetes manifests are structured using **Kustomize**:
 
 `k8s/order-service/`
+
 - `base/`
 - `overlays/dev/`
 - `overlays/staging/`
@@ -209,15 +210,18 @@ Some pipelines support parameters for safe testing:
 ### Terraform outputs integration (Infra → Service pipeline)
 
 The pipeline can copy infra outputs artifacts from the Terraform infra job (example Jenkins job path):
+
 - `terraform-infra/main`
 
 Infra pipeline should archive:
+
 - `infra-outputs.json`
 - `infra-outputs-dev.json`
 - `infra-outputs-staging.json`
 - `infra-outputs-prod.json`
 
 This service pipeline:
+
 - prefers `infra-outputs-<env>.json`
 - falls back to `infra-outputs.json`
 - then runs `deploy/ci/load-infra-outputs.sh` to export:
@@ -245,6 +249,7 @@ This repo includes reusable CI scripts under:
 `deploy/ci/`
 
 Recommended scripts:
+
 - `deploy/ci/load-infra-outputs.sh` — reads `infra-outputs.json` and exports env vars for kubectl/ingress
 - `deploy/ci/smoke-test-ingress.sh` — ingress port-forward + Host-header smoke test (CI-safe)
 
@@ -274,11 +279,13 @@ kubectl config use-context "$KUBE_CONTEXT"
 The container image is scanned for known vulnerabilities using **Docker Scout**.
 
 Policy:
+
 - Notify-only
 - Critical/High severity issues reported
 - Pipeline does **not** fail for upstream base image vulnerabilities
 
 Mitigations:
+
 - Use official base images
 - Keep runtime image minimal
 - Update dependencies regularly
