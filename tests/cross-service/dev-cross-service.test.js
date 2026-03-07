@@ -113,8 +113,14 @@ async function main() {
       200,
       `Expected GET /products to return 200, got ${response.statusCode}. Body: ${JSON.stringify(body)}`,
     );
-    assert.ok(Array.isArray(body), 'Expected GET /products response to be an array');
-    assert.ok(body.length > 0, 'Expected at least one product in dev environment');
+    assert.ok(
+      Array.isArray(body),
+      'Expected GET /products response to be an array',
+    );
+    assert.ok(
+      body.length > 0,
+      'Expected at least one product in dev environment',
+    );
 
     selectedProduct = body.find((product) => {
       const id = getProductId(product);
@@ -194,7 +200,9 @@ async function main() {
   }
 
   console.log('\n[3/3] Cross-service happy path passed.');
-  console.log('Verified: external ingress -> order-service -> product-service -> database');
+  console.log(
+    'Verified: external ingress -> order-service -> product-service -> database',
+  );
 }
 
 main().catch((error) => {
