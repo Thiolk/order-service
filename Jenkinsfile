@@ -140,6 +140,40 @@ pipeline {
       }
     }
 
+    stage('Infrastructure Validation') {
+      steps {
+        withCredentials([file(credentialsId: 'kubeconfig-minikube', variable: 'KUBECONFIG_FILE')]) {
+          sh '''
+            set -eux
+            export KUBECONFIG="$KUBECONFIG_FILE"
+
+            mkdir -p artifacts
+
+            validate_overlay() {
+              OVERLAY="$1"
+              NAME="$2"
+
+              echo "Validating overlay: $NAME ($OVERLAY)"
+
+              echo "--- kubectl kustomize: $OVERLAY ---"
+              kubectl kustomize "$OVERLAY" | tee "artifacts/kustomize-${NAME}.yaml" >/dev/null
+
+              echo "--- kubectl dry-run apply: $OVERLAY ---"
+              kubectl apply --dry-run=client -f "artifacts/kustomize-${NAME}.yaml" | tee "artifacts/dryrun-${NAME}.log"
+            }
+
+            if [ "${TARGET_ENV}" = "build" ] || [ "${TARGET_ENV}" = "rc" ]; then
+              validate_overlay "${K8S_DIR}/dev" "dev"
+              validate_overlay "${K8S_DIR}/staging" "staging"
+              validate_overlay "${K8S_DIR}/prod" "prod"
+            else
+              validate_overlay "${K8S_DIR}/${TARGET_ENV}" "${TARGET_ENV}"
+            fi
+          '''
+        }
+      }
+    }
+
     stage('Container Build') {
       steps {
         sh '''
