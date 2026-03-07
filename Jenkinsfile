@@ -57,7 +57,7 @@ pipeline {
     }
 
     stage('Build (Lint/Format)') {
-      when { expression { env.TARGET_ENV == "build" } }
+      when { expression { env.TARGET_ENV in ["build", "rc"] } }
       steps {
         sh '''
           set -eux
@@ -68,6 +68,7 @@ pipeline {
     }
 
     stage('Test (Unit)') {
+      when { expression { env.TARGET_ENV in ["build", "rc"] } }
       steps {
         sh '''
           set -eux
@@ -121,10 +122,7 @@ pipeline {
         script {
           def releaseTag = (env.RELEASE_TAG ?: "").trim()
 
-          if ((params.FORCE_IMAGE_TAG ?: "").trim()) {
-            env.IMAGE_TAG = (params.FORCE_IMAGE_TAG ?: "").trim()
-            echo "FORCE_IMAGE_TAG override applied -> IMAGE_TAG=${env.IMAGE_TAG}"
-          } else if (env.TARGET_ENV == "prod") {
+          if (env.TARGET_ENV == "prod") {
             if (!releaseTag) {
               error("Prod build requires a Git tag (RELEASE_TAG).")
             }
