@@ -283,6 +283,55 @@ pipeline {
         }
       }
     }
+
+    stage('Test (Cross-Service Integration - Dev)') {
+      when { expression { return env.TARGET_ENV == "dev" } }
+      steps {
+        withCredentials([file(credentialsId: 'kubeconfig-minikube', variable: 'KUBECONFIG_FILE')]) {
+          sh '''
+            set -eux
+            export KUBECONFIG="$KUBECONFIG_FILE"
+
+            chmod +x deploy/ci/load-infra-outputs.sh
+            eval "$(./deploy/ci/load-infra-outputs.sh)"
+            kubectl config use-context "$KUBE_CONTEXT"
+
+            export INGRESS_NS="${INGRESS_NS:-ingress-nginx}"
+            export INGRESS_SVC="${INGRESS_SVC:-ingress-nginx-controller}"
+            export LOCAL_PORT="${LOCAL_PORT:-18080}"
+            export LOG_FILE="${LOG_FILE:-/tmp/ingress-pf.log}"
+
+            export INGRESS_BASE_URL="http://127.0.0.1:${LOCAL_PORT}"
+            export ORDER_HOST="order-dev.local"
+            export PRODUCT_HOST="product-dev.local"
+
+            kubectl -n "$INGRESS_NS" port-forward "svc/$INGRESS_SVC" "${LOCAL_PORT}:80" >"$LOG_FILE" 2>&1 &
+            PF_PID=$!
+            trap 'kill $PF_PID >/dev/null 2>&1 || true' EXIT INT TERM
+
+            i=1
+            while [ $i -le 30 ]; do
+              code="$(curl -sS -o /dev/null -w "%{http_code}" "http://127.0.0.1:${LOCAL_PORT}/" || true)"
+              if [ "$code" != "000" ]; then
+                break
+              fi
+              sleep 1
+              i=$((i+1))
+            done
+
+            code="$(curl -sS -o /dev/null -w "%{http_code}" "http://127.0.0.1:${LOCAL_PORT}/" || true)"
+            if [ "$code" = "000" ]; then
+              echo "ERROR: ingress port-forward not reachable"
+              echo "--- $LOG_FILE ---"
+              cat "$LOG_FILE" || true
+              exit 1
+            fi
+
+            npm run test:cross-service:dev
+          '''
+        }
+      }
+    }
   }
 
   post {
