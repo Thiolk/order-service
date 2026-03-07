@@ -1,14 +1,16 @@
 {
   "name": "order-service",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "main": "index.js",
   "scripts": {
     "start": "node src/index.js",
     "lint": "eslint .",
+    "format": "prettier --write .",
     "format:check": "prettier --check \"src/**/*.{js,json,md}\" \"tests/**/*.{js,json,md}\" \"*.{js,json,md}\"",
     "test": "jest",
-    "test:unit": "jest --runInBand --testPathPattersn=tests/unit",
-    "test:integration": "jest --runInBand --testPathPatterns=tests/integration"
+    "test:unit": "jest --runInBand --testPathPatterns=tests/unit",
+    "test:integration": "jest --runInBand --testPathPatterns=tests/integration",
+    "test:cross-service:dev": "node deploy/ci/dev-cross-service.js"
   },
   "dependencies": {
     "axios": "^1.4.0",
