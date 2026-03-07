@@ -7,7 +7,7 @@
     "lint": "eslint .",
     "format:check": "prettier --check \"src/**/*.{js,json,md}\" \"tests/**/*.{js,json,md}\" \"*.{js,json,md}\"",
     "test": "jest",
-    "test:unit": "jest --runInBand --testPathPattersn=tests/unit",
+    "test:unit": "jest --runInBand --testPathPatterns=tests/unit",
     "test:integration": "jest --runInBand --testPathPatterns=tests/integration"
   },
   "dependencies": {
