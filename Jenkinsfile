@@ -57,7 +57,7 @@ pipeline {
     }
 
     stage('Build (Lint/Format)') {
-      when { expression { env.TARGET_ENV == "build" } }
+      when { expression { env.TARGET_ENV in ["build", "rc"] } }
       steps {
         sh '''
           set -eux
@@ -68,6 +68,7 @@ pipeline {
     }
 
     stage('Test (Unit)') {
+      when { expression { env.TARGET_ENV in ["build", "rc"] } }
       steps {
         sh '''
           set -eux
@@ -121,10 +122,7 @@ pipeline {
         script {
           def releaseTag = (env.RELEASE_TAG ?: "").trim()
 
-          if ((params.FORCE_IMAGE_TAG ?: "").trim()) {
-            env.IMAGE_TAG = (params.FORCE_IMAGE_TAG ?: "").trim()
-            echo "FORCE_IMAGE_TAG override applied -> IMAGE_TAG=${env.IMAGE_TAG}"
-          } else if (env.TARGET_ENV == "prod") {
+          if (env.TARGET_ENV == "prod") {
             if (!releaseTag) {
               error("Prod build requires a Git tag (RELEASE_TAG).")
             }
@@ -138,6 +136,40 @@ pipeline {
           echo "  IMAGE_TAG   = ${env.IMAGE_TAG}"
           echo "  RELEASE_TAG = ${releaseTag ?: 'none'}"
           echo "  BUILD_NUMBER= ${env.BUILD_NUMBER}"
+        }
+      }
+    }
+
+    stage('Infrastructure Validation') {
+      steps {
+        withCredentials([file(credentialsId: 'kubeconfig-minikube', variable: 'KUBECONFIG_FILE')]) {
+          sh '''
+            set -eux
+            export KUBECONFIG="$KUBECONFIG_FILE"
+
+            mkdir -p artifacts
+
+            validate_overlay() {
+              OVERLAY="$1"
+              NAME="$2"
+
+              echo "Validating overlay: $NAME ($OVERLAY)"
+
+              echo "--- kubectl kustomize: $OVERLAY ---"
+              kubectl kustomize "$OVERLAY" | tee "artifacts/kustomize-${NAME}.yaml" >/dev/null
+
+              echo "--- kubectl dry-run apply: $OVERLAY ---"
+              kubectl apply --dry-run=client -f "artifacts/kustomize-${NAME}.yaml" | tee "artifacts/dryrun-${NAME}.log"
+            }
+
+            if [ "${TARGET_ENV}" = "build" ] || [ "${TARGET_ENV}" = "rc" ]; then
+              validate_overlay "${K8S_DIR}/dev" "dev"
+              validate_overlay "${K8S_DIR}/staging" "staging"
+              validate_overlay "${K8S_DIR}/prod" "prod"
+            else
+              validate_overlay "${K8S_DIR}/${TARGET_ENV}" "${TARGET_ENV}"
+            fi
+          '''
         }
       }
     }
@@ -279,6 +311,55 @@ pipeline {
             kubectl -n "$NS" rollout status deployment/order-service --timeout=180s
 
             ./deploy/ci/smoke-test-ingress.sh "$HOST" "/health"
+          '''
+        }
+      }
+    }
+
+    stage('Test (Cross-Service Integration - Dev)') {
+      when { expression { return env.TARGET_ENV == "dev" } }
+      steps {
+        withCredentials([file(credentialsId: 'kubeconfig-minikube', variable: 'KUBECONFIG_FILE')]) {
+          sh '''
+            set -eux
+            export KUBECONFIG="$KUBECONFIG_FILE"
+
+            chmod +x deploy/ci/load-infra-outputs.sh
+            eval "$(./deploy/ci/load-infra-outputs.sh)"
+            kubectl config use-context "$KUBE_CONTEXT"
+
+            export INGRESS_NS="${INGRESS_NS:-ingress-nginx}"
+            export INGRESS_SVC="${INGRESS_SVC:-ingress-nginx-controller}"
+            export LOCAL_PORT="${LOCAL_PORT:-18080}"
+            export LOG_FILE="${LOG_FILE:-/tmp/ingress-pf.log}"
+
+            export INGRESS_BASE_URL="http://127.0.0.1:${LOCAL_PORT}"
+            export ORDER_HOST="order-dev.local"
+            export PRODUCT_HOST="product-dev.local"
+
+            kubectl -n "$INGRESS_NS" port-forward "svc/$INGRESS_SVC" "${LOCAL_PORT}:80" >"$LOG_FILE" 2>&1 &
+            PF_PID=$!
+            trap 'kill $PF_PID >/dev/null 2>&1 || true' EXIT INT TERM
+
+            i=1
+            while [ $i -le 30 ]; do
+              code="$(curl -sS -o /dev/null -w "%{http_code}" "http://127.0.0.1:${LOCAL_PORT}/" || true)"
+              if [ "$code" != "000" ]; then
+                break
+              fi
+              sleep 1
+              i=$((i+1))
+            done
+
+            code="$(curl -sS -o /dev/null -w "%{http_code}" "http://127.0.0.1:${LOCAL_PORT}/" || true)"
+            if [ "$code" = "000" ]; then
+              echo "ERROR: ingress port-forward not reachable"
+              echo "--- $LOG_FILE ---"
+              cat "$LOG_FILE" || true
+              exit 1
+            fi
+
+            npm run test:cross-service:dev
           '''
         }
       }
