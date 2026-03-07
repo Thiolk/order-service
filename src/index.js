@@ -21,6 +21,18 @@ index.get('/health', (req, res) => {
   res.status(200).send('OK');
 });
 
+// Version check
+index.get('/version', (req, res) => {
+  res.status(200).json({
+    service: 'order-service',
+    version: process.env.APP_VERSION || '2.1.1',
+    gitSha: process.env.GIT_SHA || 'dev-local',
+    env: process.env.NODE_ENV || process.env.TARGET_ENV || 'development',
+    buildId: process.env.BUILD_ID || 'local',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Get all orders
 index.get('/orders', async (req, res) => {
   try {
