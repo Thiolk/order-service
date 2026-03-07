@@ -20,7 +20,7 @@ CI/CD is implemented using **Jenkins Multibranch Pipelines** with environment-aw
 
 ## Version
 
-- Current release: 2.2.0
+- Current release: **2.2.0**
 
 ---
 
